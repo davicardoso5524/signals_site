@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Signals — Communication without the clutter",
+  title: "Signals",
   description:
     "A focused desktop app for voice, screen sharing and persistent rooms.",
   openGraph: {
