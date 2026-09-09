@@ -70,7 +70,7 @@ nav a:hover, .text-link:hover, .site-footer a:hover { color: var(--text-primary)
 .text-link span, .button span { font-size: 16px; }
 .scroll-indicator { position: absolute; z-index: 1; bottom: 31px; left: 50%; display: flex; align-items: center; gap: 10px; transform: translateX(-50%); color: rgba(245, 247, 251, .5); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
 .scroll-line { display: inline-block; width: 28px; height: 1px; background: rgba(245, 247, 251, .42); }
-.preview-section { padding-top: 8px; padding-bottom: 145px; }
+.preview-section { padding-top: 13px; padding-bottom: 145px; }
 .section-kicker { margin-bottom: 16px; color: var(--text-secondary); }
 .preview-frame { overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
 .preview-frame img { display: block; width: 100%; height: auto; }
