@@ -1,10 +1,14 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authRedirect, isSupabaseConfigured, supabase } from "../../lib/supabase-browser";
 
 type Mode = "login" | "register" | "forgot";
+type AuthStep = "form" | "awaiting_email_confirmation";
+
+const pendingSignupEmailKey = "signals.pending_signup_email";
+const pendingSignupResendKey = "signals.pending_signup_resend_at";
 
 function friendlyError(message: string) {
   const value = message.toLowerCase();
@@ -25,6 +29,88 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [authStep, setAuthStep] = useState<AuthStep>("form");
+  const [otp, setOtp] = useState("");
+  const [resendIn, setResendIn] = useState(0);
+  const otpRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const pendingEmail = window.sessionStorage.getItem(pendingSignupEmailKey);
+    if (pendingEmail) {
+      const resendAt = Number(window.sessionStorage.getItem(pendingSignupResendKey) || 0);
+      setEmail(pendingEmail);
+      setMode("register");
+      setAuthStep("awaiting_email_confirmation");
+      setResendIn(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
+      window.setTimeout(() => otpRef.current?.focus(), 0);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = window.setInterval(() => setResendIn((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendIn]);
+
+  const goToAccount = () => {
+    window.sessionStorage.removeItem(pendingSignupEmailKey);
+    window.sessionStorage.removeItem(pendingSignupResendKey);
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next?.startsWith("/") ? next : "/account");
+  };
+
+  const leaveConfirmation = () => {
+    window.sessionStorage.removeItem(pendingSignupEmailKey);
+    setAuthStep("form"); setOtp(""); setError(""); setMessage(""); setResendIn(0);
+  };
+
+  const verifySignup = async (token: string) => {
+    if (!supabase || token.length !== 6 || busy) return;
+    setError(""); setMessage(""); setBusy(true);
+    try {
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token,
+        type: "signup",
+      });
+      if (verifyError) throw verifyError;
+      if (!data.session) throw new Error("Verification did not create a session");
+      setMessage("Email confirmado. Entrando no Signals…");
+      goToAccount();
+    } catch (verifyError) {
+      const rawMessage = verifyError instanceof Error ? verifyError.message.toLowerCase() : "";
+      if (rawMessage.includes("expired") || rawMessage.includes("invalid token") || rawMessage.includes("otp")) {
+        setError("Código inválido ou expirado. Confira o email ou solicite um novo código.");
+      } else if (rawMessage.includes("rate limit") || rawMessage.includes("too many")) {
+        setError("Muitas tentativas. Aguarde alguns minutos e tente novamente.");
+      } else {
+        setError("Não foi possível confirmar o email agora. Tente novamente.");
+      }
+    } finally { setBusy(false); }
+  };
+
+  const resendSignup = async () => {
+    if (!supabase || resendIn > 0 || busy || !email.trim()) return;
+    setError(""); setMessage(""); setBusy(true);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: email.trim(),
+        options: { emailRedirectTo: authRedirect("/auth/callback") },
+      });
+      if (resendError) throw resendError;
+      setOtp(""); setResendIn(45); window.sessionStorage.setItem(pendingSignupResendKey, String(Date.now() + 45000)); setMessage("Um novo código foi enviado para seu email.");
+    } catch (resendError) {
+      const rawMessage = resendError instanceof Error ? resendError.message.toLowerCase() : "";
+      if (rawMessage.includes("already") || rawMessage.includes("confirmed")) {
+        setError("Este email já foi confirmado. Tente entrar com sua senha.");
+      } else if (rawMessage.includes("rate limit") || rawMessage.includes("too many")) {
+        setError("Muitos reenvios. Aguarde um pouco antes de tentar novamente.");
+      } else {
+        setError("Não foi possível reenviar o código agora. Tente novamente.");
+      }
+    } finally { setBusy(false); }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -62,10 +148,19 @@ export default function AuthPage() {
           },
         });
         if (registerError) throw registerError;
-        setMessage(data.session ? "Conta criada. Você já pode acessar o painel." : "Conta criada. Confirme seu email para continuar.");
+        if (data.user && data.user.identities?.length === 0) {
+          throw new Error("already registered");
+        }
+        if (!data.session) {
+          window.sessionStorage.setItem(pendingSignupEmailKey, email.trim());
+          window.sessionStorage.setItem(pendingSignupResendKey, String(Date.now() + 45000));
+          setAuthStep("awaiting_email_confirmation");
+          setResendIn(45);
+          setMessage("Enviamos um código de 6 dígitos para seu email.");
+          window.setTimeout(() => otpRef.current?.focus(), 0);
+        }
         if (data.session) {
-          const next = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
-          router.push(next?.startsWith("/") ? next : "/account");
+          goToAccount();
         }
       }
     } catch (submitError) {
@@ -75,7 +170,7 @@ export default function AuthPage() {
     }
   };
 
-  const title = mode === "login" ? "Entrar no Signals" : mode === "register" ? "Criar sua conta" : "Recuperar senha";
+  const title = authStep === "awaiting_email_confirmation" ? "Verifique seu email" : mode === "login" ? "Entrar no Signals" : mode === "register" ? "Criar sua conta" : "Recuperar senha";
 
   return (
     <main className="auth-page">
@@ -83,9 +178,17 @@ export default function AuthPage() {
         <a className="auth-back" href="/">← Voltar para o Signals</a>
         <p className="eyebrow">SIGNALS</p>
         <h1 id="auth-title">{title}</h1>
-        {mode === "forgot" && <p className="auth-description">Enviaremos um link seguro para redefinir sua senha.</p>}
+        {authStep === "awaiting_email_confirmation" ? <p className="auth-description">Enviamos um código para <strong>{email.replace(/(^.).*(@.*$)/, "$1•••$2")}</strong>. Digite-o para confirmar sua conta.</p> : mode === "forgot" && <p className="auth-description">Enviaremos um link seguro para redefinir sua senha.</p>}
         {!isSupabaseConfigured && <p className="form-error" role="alert">Configure as variáveis NEXT_PUBLIC_SUPABASE no ambiente do site.</p>}
-        <form className="auth-form" onSubmit={submit} noValidate>
+        {authStep === "awaiting_email_confirmation" ? <form className="auth-form otp-form" onSubmit={(event) => { event.preventDefault(); void verifySignup(otp); }} noValidate>
+          <label htmlFor="signup-otp">Código de confirmação</label>
+          <input ref={otpRef} id="signup-otp" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" value={otp} onChange={(event) => { const value = event.target.value.replace(/\D/g, "").slice(0, 6); setOtp(value); if (value.length === 6) void verifySignup(value); }} aria-describedby="otp-help" required />
+          <p id="otp-help" className="auth-hint">O código tem 6 dígitos e expira em breve.</p>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {message && <p className="form-success" role="status">{message}</p>}
+          <button className="button button-primary auth-submit" type="submit" disabled={busy || otp.length !== 6}>{busy ? "Aguarde…" : "Confirmar email"}</button>
+          <button className="auth-resend" type="button" onClick={() => void resendSignup()} disabled={busy || resendIn > 0}>{resendIn > 0 ? `Reenviar em ${resendIn}s` : "Reenviar código"}</button>
+        </form> : <form className="auth-form" onSubmit={submit} noValidate>
           {mode === "register" && <>
             <label htmlFor="name">Nome</label>
             <input id="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required />
@@ -101,12 +204,13 @@ export default function AuthPage() {
           {error && <p className="form-error" role="alert">{error}</p>}
           {message && <p className="form-success" role="status">{message}</p>}
           <button className="button button-primary auth-submit" type="submit" disabled={busy}>{busy ? "Aguarde…" : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Enviar link"}</button>
-        </form>
+        </form>}
         <div className="auth-links">
+          {authStep === "awaiting_email_confirmation" && <button type="button" onClick={leaveConfirmation}>← Trocar email</button>}
           {mode === "login" && <button type="button" onClick={() => setMode("forgot")}>Esqueci minha senha</button>}
           {mode === "forgot" && <button type="button" onClick={() => setMode("login")}>Voltar para login</button>}
-          {mode !== "register" && <button type="button" onClick={() => setMode("register")}>Criar uma conta</button>}
-          {mode === "register" && <button type="button" onClick={() => setMode("login")}>Já tenho uma conta</button>}
+          {authStep !== "awaiting_email_confirmation" && mode !== "register" && <button type="button" onClick={() => setMode("register")}>Criar uma conta</button>}
+          {authStep !== "awaiting_email_confirmation" && mode === "register" && <button type="button" onClick={() => setMode("login")}>Já tenho uma conta</button>}
         </div>
       </section>
     </main>

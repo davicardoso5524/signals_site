@@ -175,6 +175,13 @@ h2 { margin: 0 0 26px; font-size: clamp(34px, 4vw, 55px); font-weight: 500; lett
 .auth-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
 .auth-submit { justify-content: center; margin-top: 12px; cursor: pointer; }
 .auth-submit:disabled { cursor: wait; opacity: .65; }
+.otp-form { gap: 12px; }
+.otp-input { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace !important; font-size: 24px !important; letter-spacing: .28em; text-align: center; }
+.auth-hint { color: var(--text-secondary); font-size: 12px; margin: 0; }
+.auth-resend { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; font: inherit; font-size: 13px; justify-self: start; padding: 4px 0; }
+.auth-resend:hover:not(:disabled) { color: var(--text-primary); }
+.auth-resend:disabled { cursor: wait; opacity: .6; }
+.auth-links button:focus-visible, .auth-resend:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .form-error, .form-success { font-size: 13px; }
 .form-error { color: #ff8d8d; }
 .form-success { color: #82d6aa; }
