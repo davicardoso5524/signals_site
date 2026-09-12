@@ -34,6 +34,7 @@ export default function AuthPage() {
   const [resendIn, setResendIn] = useState(0);
   const otpRef = useRef<HTMLInputElement>(null);
   const isVerifyingRef = useRef(false);
+  const verifyInvocationCount = useRef(0);
 
   useEffect(() => {
     const pendingEmail = window.sessionStorage.getItem(pendingSignupEmailKey);
@@ -65,11 +66,19 @@ export default function AuthPage() {
     setAuthStep("form"); setOtp(""); setError(""); setMessage(""); setResendIn(0);
   };
 
-  const verifySignup = async (token: string) => {
-    if (!supabase || token.length !== 6 || busy || isVerifyingRef.current) return;
+  const handleVerify = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!supabase || busy || isVerifyingRef.current) return;
+    const token = otp;
+    if (token.length !== 6) return;
     isVerifyingRef.current = true;
     setError(""); setMessage(""); setBusy(true);
     const verifyType = "email" as const;
+    console.log("[auth] verifyOtp invocation", {
+      invocation: ++verifyInvocationCount.current,
+      source: "form-submit",
+      type: verifyType,
+    });
     console.info("[auth] verifyOtp started", { type: verifyType });
     try {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
@@ -100,6 +109,10 @@ export default function AuthPage() {
         setError("Não foi possível confirmar o email agora. Tente novamente.");
       }
     } finally { isVerifyingRef.current = false; setBusy(false); }
+  };
+
+  const handleOtpChange = (value: string) => {
+    setOtp(value.replace(/\D/g, "").slice(0, 6));
   };
 
   const resendSignup = async () => {
@@ -193,9 +206,9 @@ export default function AuthPage() {
         <h1 id="auth-title">{title}</h1>
         {authStep === "awaiting_email_confirmation" ? <p className="auth-description">Enviamos um código para <strong>{email.replace(/(^.).*(@.*$)/, "$1•••$2")}</strong>. Digite-o para confirmar sua conta.</p> : mode === "forgot" && <p className="auth-description">Enviaremos um link seguro para redefinir sua senha.</p>}
         {!isSupabaseConfigured && <p className="form-error" role="alert">Configure as variáveis NEXT_PUBLIC_SUPABASE no ambiente do site.</p>}
-        {authStep === "awaiting_email_confirmation" ? <form className="auth-form otp-form" onSubmit={(event) => { event.preventDefault(); void verifySignup(otp); }} noValidate>
+        {authStep === "awaiting_email_confirmation" ? <form className="auth-form otp-form" onSubmit={handleVerify} noValidate>
           <label htmlFor="signup-otp">Código de confirmação</label>
-          <input ref={otpRef} id="signup-otp" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" value={otp} onChange={(event) => { const value = event.target.value.replace(/\D/g, "").slice(0, 6); setOtp(value); if (value.length === 6) void verifySignup(value); }} aria-describedby="otp-help" required />
+          <input ref={otpRef} id="signup-otp" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" value={otp} onChange={(event) => handleOtpChange(event.target.value)} aria-describedby="otp-help" required />
           <p id="otp-help" className="auth-hint">O código tem 6 dígitos e expira em breve.</p>
           {error && <p className="form-error" role="alert">{error}</p>}
           {message && <p className="form-success" role="status">{message}</p>}
