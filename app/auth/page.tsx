@@ -9,6 +9,7 @@ type AuthStep = "form" | "awaiting_email_confirmation";
 
 const pendingSignupEmailKey = "signals.pending_signup_email";
 const pendingSignupResendKey = "signals.pending_signup_resend_at";
+const EMAIL_OTP_LENGTH = 8;
 
 function friendlyError(message: string) {
   const value = message.toLowerCase();
@@ -70,7 +71,7 @@ export default function AuthPage() {
     event.preventDefault();
     if (!supabase || busy || isVerifyingRef.current) return;
     const token = otp;
-    if (token.length !== 6) return;
+    if (token.length !== EMAIL_OTP_LENGTH) return;
     isVerifyingRef.current = true;
     setError(""); setMessage(""); setBusy(true);
     const verifyType = "signup" as const;
@@ -112,7 +113,7 @@ export default function AuthPage() {
   };
 
   const handleOtpChange = (value: string) => {
-    setOtp(value.replace(/\D/g, "").slice(0, 6));
+    setOtp(value.replace(/\D/g, "").slice(0, EMAIL_OTP_LENGTH));
   };
 
   const resendSignup = async () => {
@@ -182,7 +183,7 @@ export default function AuthPage() {
           window.sessionStorage.setItem(pendingSignupResendKey, String(Date.now() + 45000));
           setAuthStep("awaiting_email_confirmation");
           setResendIn(45);
-          setMessage("Enviamos um código de 6 dígitos para seu email.");
+          setMessage(`Enviamos um código de ${EMAIL_OTP_LENGTH} dígitos para seu email.`);
           window.setTimeout(() => otpRef.current?.focus(), 0);
         }
         if (data.session) {
@@ -208,11 +209,11 @@ export default function AuthPage() {
         {!isSupabaseConfigured && <p className="form-error" role="alert">Configure as variáveis NEXT_PUBLIC_SUPABASE no ambiente do site.</p>}
         {authStep === "awaiting_email_confirmation" ? <form className="auth-form otp-form" onSubmit={handleVerify} noValidate>
           <label htmlFor="signup-otp">Código de confirmação</label>
-          <input ref={otpRef} id="signup-otp" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" value={otp} onChange={(event) => handleOtpChange(event.target.value)} aria-describedby="otp-help" required />
-          <p id="otp-help" className="auth-hint">O código tem 6 dígitos e expira em breve.</p>
+          <input ref={otpRef} id="signup-otp" className="otp-input" inputMode="numeric" pattern={`[0-9]{${EMAIL_OTP_LENGTH}}`} maxLength={EMAIL_OTP_LENGTH} autoComplete="one-time-code" value={otp} onChange={(event) => handleOtpChange(event.target.value)} aria-describedby="otp-help" required />
+          <p id="otp-help" className="auth-hint">O código tem {EMAIL_OTP_LENGTH} dígitos e expira em breve.</p>
           {error && <p className="form-error" role="alert">{error}</p>}
           {message && <p className="form-success" role="status">{message}</p>}
-          <button className="button button-primary auth-submit" type="submit" disabled={busy || otp.length !== 6}>{busy ? "Aguarde…" : "Confirmar email"}</button>
+          <button className="button button-primary auth-submit" type="submit" disabled={busy || otp.length !== EMAIL_OTP_LENGTH}>{busy ? "Aguarde…" : "Confirmar email"}</button>
           <button className="auth-resend" type="button" onClick={() => void resendSignup()} disabled={busy || resendIn > 0}>{resendIn > 0 ? `Reenviar em ${resendIn}s` : "Reenviar código"}</button>
         </form> : <form className="auth-form" onSubmit={submit} noValidate>
           {mode === "register" && <>
