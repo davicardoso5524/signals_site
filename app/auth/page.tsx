@@ -71,9 +71,16 @@ export default function AuthPage() {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token,
-        type: "signup",
+        type: "email",
       });
-      if (verifyError) throw verifyError;
+      if (verifyError) {
+        console.warn("[auth] verifyOtp failed", {
+          code: verifyError.code ?? null,
+          status: verifyError.status ?? null,
+          message: verifyError.message,
+        });
+        throw verifyError;
+      }
       if (!data.session) throw new Error("Verification did not create a session");
       setMessage("Email confirmado. Entrando no Signals…");
       goToAccount();
