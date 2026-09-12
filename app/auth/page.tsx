@@ -73,7 +73,7 @@ export default function AuthPage() {
     if (token.length !== 6) return;
     isVerifyingRef.current = true;
     setError(""); setMessage(""); setBusy(true);
-    const verifyType = "email" as const;
+    const verifyType = "signup" as const;
     console.log("[auth] verifyOtp invocation", {
       invocation: ++verifyInvocationCount.current,
       source: "form-submit",
