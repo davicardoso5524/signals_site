@@ -33,6 +33,7 @@ export default function AuthPage() {
   const [otp, setOtp] = useState("");
   const [resendIn, setResendIn] = useState(0);
   const otpRef = useRef<HTMLInputElement>(null);
+  const isVerifyingRef = useRef(false);
 
   useEffect(() => {
     const pendingEmail = window.sessionStorage.getItem(pendingSignupEmailKey);
@@ -65,22 +66,27 @@ export default function AuthPage() {
   };
 
   const verifySignup = async (token: string) => {
-    if (!supabase || token.length !== 6 || busy) return;
+    if (!supabase || token.length !== 6 || busy || isVerifyingRef.current) return;
+    isVerifyingRef.current = true;
     setError(""); setMessage(""); setBusy(true);
+    const verifyType = "email" as const;
+    console.info("[auth] verifyOtp started", { type: verifyType });
     try {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token,
-        type: "email",
+        type: verifyType,
       });
       if (verifyError) {
-        console.warn("[auth] verifyOtp failed", {
-          code: verifyError.code ?? null,
+        console.info("[auth] verifyOtp result", {
+          type: verifyType,
           status: verifyError.status ?? null,
-          message: verifyError.message,
+          errorCode: verifyError.code ?? null,
+          errorMessage: verifyError.message,
         });
         throw verifyError;
       }
+      console.info("[auth] verifyOtp result", { type: verifyType, status: 200, error: null });
       if (!data.session) throw new Error("Verification did not create a session");
       setMessage("Email confirmado. Entrando no Signals…");
       goToAccount();
@@ -93,7 +99,7 @@ export default function AuthPage() {
       } else {
         setError("Não foi possível confirmar o email agora. Tente novamente.");
       }
-    } finally { setBusy(false); }
+    } finally { isVerifyingRef.current = false; setBusy(false); }
   };
 
   const resendSignup = async () => {
