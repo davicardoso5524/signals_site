@@ -1,6 +1,6 @@
 import { json, options } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabase.ts";
-import { buildAutoRecurring, mapMercadoPagoStatus, trialEndsAt } from "../_shared/subscription.ts";
+import { buildPaidAutoRecurring, mapMercadoPagoStatus } from "../_shared/subscription.ts";
 
 const PRICE = 10;
 
@@ -26,16 +26,10 @@ Deno.serve(async (request) => {
       if (current.ok && currentData.init_point) return json({ init_point: currentData.init_point, preapproval_id: currentData.id, existing: true });
     }
 
-    const { data: trial } = await supabase.from("trials").select("id, starts_at, ends_at, status").eq("user_id", user.id).maybeSingle();
-    let claimedTrialId: string | null = null;
-    if (!trial) {
-      const provisionalStart = new Date();
-      const provisionalEnd = new Date(provisionalStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-      const { data: claimedTrial, error: claimError } = await supabase.from("trials").insert({ user_id: user.id, starts_at: provisionalStart.toISOString(), ends_at: provisionalEnd.toISOString(), status: "active" }).select("id").single();
-      if (!claimError) claimedTrialId = claimedTrial.id;
-      else if (claimError.code !== "23505") return json({ error: "database_error" }, 500);
-    }
-    const hasUsedTrial = Boolean(trial) || !claimedTrialId;
+    const { data: trial, error: trialError } = await supabase.from("trials").select("id").eq("user_id", user.id).maybeSingle();
+    if (trialError) return json({ error: "database_error" }, 500);
+    // The local trial is intentionally only observed here. It never changes the paid payload.
+    void trial;
 
     const externalReference = `signals:${user.id}:${crypto.randomUUID()}`;
     const response = await fetch("https://api.mercadopago.com/preapproval", {
@@ -45,25 +39,21 @@ Deno.serve(async (request) => {
         reason: "Signals Pro",
         external_reference: externalReference,
         payer_email: user.email,
-        auto_recurring: buildAutoRecurring(hasUsedTrial),
+        auto_recurring: buildPaidAutoRecurring(),
         back_url: `${siteUrl}/checkout/success`,
-        status: "pending",
       }),
     });
     const subscription = await response.json();
     if (!response.ok || !subscription.id || !subscription.init_point) {
-      if (claimedTrialId) await supabase.from("trials").delete().eq("id", claimedTrialId);
       return json({ error: "provider_error" }, 502);
     }
 
     const start = new Date(String(subscription.auto_recurring?.start_date ?? subscription.date_created ?? new Date().toISOString()));
-    const trialEnd = trialEndsAt(subscription, start);
     const recurring = (subscription.auto_recurring ?? {}) as Record<string, unknown>;
     const periodEnd = subscription.next_payment_date ?? recurring.end_date ?? null;
     const { error: localError } = await supabase.from("subscriptions").insert({ user_id: user.id, plan_id: plan.id, provider: "mercadopago", provider_subscription_id: String(subscription.id), status: mapMercadoPagoStatus(String(subscription.status ?? "pending")), current_period_start: Number.isNaN(start.getTime()) ? null : start.toISOString(), current_period_end: periodEnd });
     if (localError?.code === "23505") return json({ error: "subscription_already_exists" }, 409);
     if (localError) return json({ error: "database_error" }, 500);
-    if (claimedTrialId && trialEnd) await supabase.from("trials").update({ starts_at: start.toISOString(), ends_at: trialEnd.toISOString(), status: "active" }).eq("id", claimedTrialId);
     return json({ init_point: subscription.init_point, preapproval_id: subscription.id });
   } catch (error) {
     const code = error instanceof Error ? error.message : "unknown_error";

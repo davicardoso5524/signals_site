@@ -197,6 +197,8 @@ h2 { margin: 0 0 26px; font-size: clamp(34px, 4vw, 55px); font-weight: 500; lett
 .account-card-label { display: block; margin-bottom: 24px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
 .account-card strong { font-size: 21px; font-weight: 500; }
 .account-card p { max-width: 360px; color: var(--text-secondary); font-size: 14px; }
+.account-meta { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 11px !important; letter-spacing: .04em; }
+.account-cta { margin-top: 16px; }
 @media (max-width: 700px) {
   .site-header { height: 64px; margin-bottom: -64px; padding: 0 20px; }
   nav { gap: 14px; font-size: 12px; }

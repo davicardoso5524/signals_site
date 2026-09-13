@@ -21,19 +21,6 @@ export function userIdFromExternalReference(reference: unknown): string | null {
   return match?.[1] ?? null;
 }
 
-export function trialEndsAt(subscription: Record<string, unknown>, fallbackStart: Date): Date | null {
-  const recurring = (subscription.auto_recurring ?? {}) as Record<string, unknown>;
-  const freeTrial = (recurring.free_trial ?? {}) as Record<string, unknown>;
-  const offset = Number(subscription.first_invoice_offset ?? freeTrial.frequency ?? 0);
-  if (!Number.isFinite(offset) || offset <= 0) return null;
-  const start = new Date(String(recurring.start_date ?? subscription.date_created ?? fallbackStart.toISOString()));
-  if (Number.isNaN(start.getTime())) return null;
-  const days = String(freeTrial.frequency_type ?? "days") === "months" ? offset * 30 : offset;
-  return new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
-}
-
-export function buildAutoRecurring(hasUsedTrial: boolean) {
-  const recurring = { frequency: 1, frequency_type: "months", transaction_amount: 10, currency_id: "BRL" } as Record<string, unknown>;
-  if (!hasUsedTrial) recurring.free_trial = { frequency: 7, frequency_type: "days" };
-  return recurring;
+export function buildPaidAutoRecurring() {
+  return { frequency: 1, frequency_type: "months", transaction_amount: 10, currency_id: "BRL" };
 }

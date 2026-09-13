@@ -17,10 +17,13 @@ uma licença `lifetime` para cada conta usando seus novos UUIDs.
 ## Fluxo de assinatura Pro
 
 1. O checkout autenticado cria uma assinatura recorrente em `/preapproval`.
-2. A assinatura começa com 7 dias de trial e passa a cobrar R$ 10 por mês.
-3. O webhook consulta o `/preapproval/{id}`, valida `x-signature` e sincroniza
-   `subscriptions` e `trials`.
-4. O acesso é decidido pelo status confirmado no banco, nunca pelo retorno do
+2. O usuário recebe 7 dias de trial automaticamente na criação da conta, sem
+   checkout ou método de pagamento.
+3. O checkout cria a assinatura recorrente de R$ 10 por mês sem acrescentar um
+   novo período gratuito; o trial local original permanece a fonte de verdade.
+4. O webhook consulta o `/preapproval/{id}`, valida `x-signature` e sincroniza
+   somente `subscriptions`.
+5. O acesso é decidido pelo status confirmado no banco, nunca pelo retorno do
    navegador.
 
 ## Fluxo legado de keys pagas
@@ -49,6 +52,6 @@ segredo disponível apenas no servidor.
 
 ## Próxima etapa
 
-Implementar as Edge Functions `start-trial`, `license-status`, `activate-key`,
-`create-checkout`, `payment-webhook` e `resend-license-key`, depois conectar as
+Implementar as Edge Functions `license-status`, `activate-key`, `create-checkout`,
+`payment-webhook` e `resend-license-key`, depois conectar as
 páginas de autenticação e o painel do site.

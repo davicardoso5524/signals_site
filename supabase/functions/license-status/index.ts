@@ -26,7 +26,7 @@ Deno.serve(async (request) => {
     const activeTrial = trial.data && trial.data.status === "active" && new Date(trial.data.ends_at).getTime() > now
       ? trial.data
       : null;
-    return json({ active: activeLicenses.length > 0 || activeSubscriptions.length > 0 || Boolean(activeTrial), licenses: activeLicenses, trial: activeTrial, subscriptions: subscriptions.data ?? [] });
+    return json({ active: activeLicenses.length > 0 || activeSubscriptions.length > 0 || Boolean(activeTrial), licenses: activeLicenses, trial: trial.data ?? null, active_trial: activeTrial, subscriptions: subscriptions.data ?? [] });
   } catch (error) {
     const code = error instanceof Error ? error.message : "unknown_error";
     return json({ error: code === "AUTH_REQUIRED" || code === "AUTH_INVALID" ? "unauthorized" : "internal_error" }, code.startsWith("AUTH_") ? 401 : 500);
