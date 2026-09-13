@@ -32,16 +32,17 @@ Deno.serve(async (request) => {
     void trial;
 
     const externalReference = `signals:${user.id}:${crypto.randomUUID()}`;
+    const requestPayload = {
+      reason: "Signals Pro",
+      external_reference: externalReference,
+      payer_email: user.email,
+      auto_recurring: buildPaidAutoRecurring(),
+      back_url: `${siteUrl}/checkout/success`,
+    };
     const response = await fetch("https://api.mercadopago.com/preapproval", {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        reason: "Signals Pro",
-        external_reference: externalReference,
-        payer_email: user.email,
-        auto_recurring: buildPaidAutoRecurring(),
-        back_url: `${siteUrl}/checkout/success`,
-      }),
+      body: JSON.stringify(requestPayload),
     });
     const subscription = await response.json();
     if (!response.ok || !subscription.id || !subscription.init_point) {
