@@ -1,6 +1,6 @@
 import { json } from "../_shared/cors.ts";
 import { adminClient } from "../_shared/supabase.ts";
-import { mapMercadoPagoStatus, userIdFromExternalReference } from "../_shared/subscription.ts";
+import { getSubscriptionPeriod, mapMercadoPagoStatus, userIdFromExternalReference } from "../_shared/subscription.ts";
 
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
@@ -75,10 +75,8 @@ async function handleSubscriptionPreapprovalEvent(payload: Record<string, unknow
   if (authUserError || !authUser.user) return json({ error: "subscription_user_not_found" }, 422);
   const { data: plan } = await supabase.from("plans").select("id").eq("code", "pro_monthly").single();
   if (!plan) return json({ error: "plan_not_found" }, 500);
-  const recurring = (subscription.auto_recurring ?? {}) as Record<string, unknown>;
-  const start = new Date(String(recurring.start_date ?? subscription.date_created ?? new Date().toISOString()));
-  const periodEndValue = subscription.next_payment_date ?? recurring.end_date ?? null;
-  const { error: subscriptionError } = await supabase.from("subscriptions").upsert({ user_id: resolvedUserId, plan_id: plan.id, provider: "mercadopago", provider_subscription_id: preapprovalId, status, current_period_start: Number.isNaN(start.getTime()) ? null : start.toISOString(), current_period_end: periodEndValue }, { onConflict: "provider_subscription_id" });
+  const period = getSubscriptionPeriod(subscription);
+  const { error: subscriptionError } = await supabase.from("subscriptions").upsert({ user_id: resolvedUserId, plan_id: plan.id, provider: "mercadopago", provider_subscription_id: preapprovalId, status, ...period }, { onConflict: "provider_subscription_id" });
   if (subscriptionError) return json({ error: "database_error" }, 500);
   await supabase.from("payment_events").update({ processed_at: new Date().toISOString() }).eq("provider_event_id", eventId);
   return json({ ok: true, status });

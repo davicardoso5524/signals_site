@@ -1,6 +1,6 @@
 import { json, options } from "../_shared/cors.ts";
 import { adminClient, requireUser } from "../_shared/supabase.ts";
-import { buildPaidAutoRecurring, mapMercadoPagoStatus } from "../_shared/subscription.ts";
+import { buildPaidAutoRecurring, getSubscriptionPeriod, mapMercadoPagoStatus } from "../_shared/subscription.ts";
 
 const PRICE = 10;
 
@@ -49,10 +49,8 @@ Deno.serve(async (request) => {
       return json({ error: "provider_error" }, 502);
     }
 
-    const start = new Date(String(subscription.auto_recurring?.start_date ?? subscription.date_created ?? new Date().toISOString()));
-    const recurring = (subscription.auto_recurring ?? {}) as Record<string, unknown>;
-    const periodEnd = subscription.next_payment_date ?? recurring.end_date ?? null;
-    const { error: localError } = await supabase.from("subscriptions").insert({ user_id: user.id, plan_id: plan.id, provider: "mercadopago", provider_subscription_id: String(subscription.id), status: mapMercadoPagoStatus(String(subscription.status ?? "pending")), current_period_start: Number.isNaN(start.getTime()) ? null : start.toISOString(), current_period_end: periodEnd });
+    const period = getSubscriptionPeriod(subscription);
+    const { error: localError } = await supabase.from("subscriptions").insert({ user_id: user.id, plan_id: plan.id, provider: "mercadopago", provider_subscription_id: String(subscription.id), status: mapMercadoPagoStatus(String(subscription.status ?? "pending")), ...period });
     if (localError?.code === "23505") return json({ error: "subscription_already_exists" }, 409);
     if (localError) return json({ error: "database_error" }, 500);
     return json({ init_point: subscription.init_point, preapproval_id: subscription.id });

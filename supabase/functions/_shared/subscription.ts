@@ -24,3 +24,18 @@ export function userIdFromExternalReference(reference: unknown): string | null {
 export function buildPaidAutoRecurring() {
   return { frequency: 1, frequency_type: "months", transaction_amount: 10, currency_id: "BRL" };
 }
+
+export function getSubscriptionPeriod(subscription: Record<string, any>) {
+  const recurring = (subscription.auto_recurring ?? {}) as Record<string, unknown>;
+  const startValue = recurring.start_date ?? subscription.date_created ?? null;
+  const endValue = subscription.next_payment_date ?? recurring.end_date ?? null;
+  const start = startValue ? new Date(String(startValue)) : null;
+  const end = endValue ? new Date(String(endValue)) : null;
+  const validStart = start && !Number.isNaN(start.getTime()) ? start : null;
+  const validEnd = end && !Number.isNaN(end.getTime()) ? end : null;
+
+  return {
+    current_period_start: validStart?.toISOString() ?? null,
+    current_period_end: validEnd && (!validStart || validEnd.getTime() > validStart.getTime()) ? validEnd.toISOString() : null,
+  };
+}
