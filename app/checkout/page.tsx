@@ -22,11 +22,22 @@ export default function CheckoutPage() {
       }
       const { data, error: checkoutError } = await supabase.functions.invoke("create-checkout", { body: { plan: "pro_monthly" } });
       if (cancelled) return;
-      if (checkoutError || !data?.init_point) {
+      const initPoint = data?.init_point;
+      let parsedInitPoint: URL | null = null;
+      try {
+        if (typeof initPoint === "string") parsedInitPoint = new URL(initPoint);
+      } catch {
+        parsedInitPoint = null;
+      }
+      const validInitPoint = parsedInitPoint?.protocol === "https:" && parsedInitPoint.hostname.match(/(^|\.)mercadopago\.com(\.[a-z]{2})?$/);
+      if (process.env.NODE_ENV === "development") {
+        console.info("[CHECKOUT] frontend_received", { hasInitPoint: typeof initPoint === "string" && initPoint.length > 0, initPointOrigin: parsedInitPoint?.origin ?? null });
+      }
+      if (checkoutError || !validInitPoint) {
         setError("Não foi possível abrir o pagamento. Tente novamente em alguns instantes.");
         return;
       }
-      window.location.assign(data.init_point);
+      window.location.assign(initPoint);
     }
     void beginCheckout();
     return () => { cancelled = true; };
