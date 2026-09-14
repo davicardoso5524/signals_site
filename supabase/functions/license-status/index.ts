@@ -34,12 +34,18 @@ Deno.serve(async (request) => {
       ...(activeTrial ? [{ source: "trial", expires_at: activeTrial.ends_at }] : []),
       ...activeGrants.map((grant) => ({ source: "admin", expires_at: grant.ends_at })),
     ];
-    const effective = candidates.reduce<{ source: string; expires_at: string | null } | null>((longest, candidate) => {
-      if (!longest) return candidate;
-      if (!longest.expires_at) return longest;
-      if (!candidate.expires_at) return candidate;
-      return new Date(candidate.expires_at).getTime() > new Date(longest.expires_at).getTime() ? candidate : longest;
-    }, null);
+    const priority = ["admin", "subscription", "license", "trial"];
+    const effectiveSource = priority.find((source) => candidates.some((candidate) => candidate.source === source));
+    const effective = effectiveSource
+      ? candidates
+        .filter((candidate) => candidate.source === effectiveSource)
+        .reduce<{ source: string; expires_at: string | null } | null>((latest, candidate) => {
+          if (!latest) return candidate;
+          if (!latest.expires_at) return latest;
+          if (!candidate.expires_at) return candidate;
+          return new Date(candidate.expires_at).getTime() > new Date(latest.expires_at).getTime() ? candidate : latest;
+        }, null)
+      : null;
     return json({ active: candidates.length > 0, access_source: effective?.source ?? null, expires_at: effective?.expires_at ?? null, licenses: activeLicenses, trial: trial.data ?? null, active_trial: activeTrial, subscriptions: subscriptions.data ?? [] });
   } catch (error) {
     const code = error instanceof Error ? error.message : "unknown_error";
