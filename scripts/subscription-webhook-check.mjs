@@ -37,7 +37,7 @@ assert.deepEqual(buildPaidAutoRecurring(), {
 assert.equal("free_trial" in buildPaidAutoRecurring(), false);
 assert.equal(map("expired"), "expired");
 
-const migration = readFileSync("supabase/migrations/202609120002_auto_start_trial.sql", "utf8");
+const migration = readFileSync("supabase/migrations/202609140003_auto_start_trial_reconciled.sql", "utf8");
 const checkout = readFileSync("supabase/functions/create-checkout/index.ts", "utf8");
 const webhook = readFileSync("supabase/functions/payment-webhook/index.ts", "utf8");
 const licenseStatus = readFileSync("supabase/functions/license-status/index.ts", "utf8");
